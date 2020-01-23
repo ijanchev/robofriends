@@ -1,10 +1,11 @@
 import * as types from "./constants";
 import * as actions from "./actions";
-import nock from "nock";
+import fetchMock from "fetch-mock";
 import configureStore from "redux-mock-store";
 import thunkMiddleware from "redux-thunk";
 
-const mockStore = configureStore([thunkMiddleware]);
+const middlewares = [thunkMiddleware];
+const mockStore = configureStore(middlewares);
 
 describe("setSearchField", () => {
   const text = "test";
@@ -17,10 +18,61 @@ describe("setSearchField", () => {
 });
 
 describe("requestRobots", () => {
-  it("handles requesting robots API", () => {
-    const store = mockStore();
-    store.dispatch(actions.requestRobots());
-    const action = store.getActions();
-    expect(action[0].type).toEqual(types.REQUEST_ROBOTS_PENDING);
+  afterEach(() => {
+    fetchMock.restore();
+  });
+  it("handles requesting robots API - SUCCESS", () => {
+    fetchMock
+      .mock("https://jsonplaceholder.typicode.com/users", {
+        body: { robots: [{ id: 2, name: "John", email: "john@gmail.com" }] },
+        headers: { "content-type": "application/json" }
+      })
+      .sandbox();
+
+    const expectedActions = [
+      { type: types.REQUEST_ROBOTS_PENDING },
+      {
+        type: types.REQUEST_ROBOTS_SUCCESS,
+        payload: { robots: [{ id: 2, name: "John", email: "john@gmail.com" }] }
+      }
+    ];
+
+    const initialState = {
+      robots: [],
+      isPending: false
+    };
+    const store = mockStore(initialState);
+
+    return store.dispatch(actions.requestRobots()).then(() => {
+      expect(store.getActions()).toEqual(expectedActions);
+    });
+  });
+
+  it("handles requesting robots API - FAIL", () => {
+    fetchMock
+      .mock("https://jsonplaceholder.typicode.com/users", {
+        status: 400
+      })
+      .sandbox();
+
+    const expectedActions = [
+      { type: types.REQUEST_ROBOTS_PENDING },
+      {
+        type: types.REQUEST_ROBOTS_FAILED,
+        payload: {
+          error: "error"
+        }
+      }
+    ];
+
+    const initialState = {
+      robots: [],
+      isPending: false
+    };
+    const store = mockStore(initialState);
+
+    return store.dispatch(actions.requestRobots()).then(() => {
+      expect(store.getActions()).toEqual(expectedActions);
+    });
   });
 });
